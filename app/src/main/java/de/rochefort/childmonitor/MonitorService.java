@@ -24,6 +24,7 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.net.nsd.NsdManager;
@@ -31,10 +32,12 @@ import android.net.nsd.NsdServiceInfo;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
-import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.ServiceCompat;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -129,7 +132,8 @@ public class MonitorService extends Service {
         // Display a notification about us starting.  We put an icon in the status bar.
         createNotificationChannel();
         Notification n = buildNotification();
-        startForeground(ID, n);
+        final int foregroundServiceType =  (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ? ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE : 0; // Keep the linter happy
+        ServiceCompat.startForeground(this, ID, n, foregroundServiceType);
         ensureMonitorThread();
 
         return START_REDELIVER_INTENT;
@@ -157,6 +161,7 @@ public class MonitorService extends Service {
 
                     // Wait for a parent to find us and connect
                     try (Socket socket = serverSocket.accept()) {
+
                         Log.i(TAG, "Connection from parent device received");
 
                         // We now have a client connection.
@@ -290,8 +295,7 @@ public class MonitorService extends Service {
         }
 
         // Cancel the persistent notification.
-        int NOTIFICATION = R.string.listening;
-        notificationManager.cancel(NOTIFICATION);
+        notificationManager.cancel(R.string.listening);
 
         stopForeground(true);
         // Tell the user we stopped.

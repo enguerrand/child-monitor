@@ -1,15 +1,15 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdk 26
+    compileSdk 34
 
     defaultConfig {
         applicationId "de.rochefort.childmonitor"
         minSdkVersion 21
-        //noinspection ExpiredTargetSdkVersion
-        targetSdkVersion 26
+        targetSdkVersion 34
         versionCode 11
         versionName "1.1"
+        multiDexEnabled true
     }
 
     buildTypes {
@@ -19,9 +19,8 @@ android {
         }
     }
 
-
     dependencies {
-        implementation "com.android.support:support-compat:26.1.0"
+        coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.0.4'
     }
     namespace 'de.rochefort.childmonitor'
     lint {
@@ -29,7 +28,14 @@ android {
         warning 'MissingTranslation'
     }
     compileOptions {
+        // Flag to enable support for the new language APIs
+        coreLibraryDesugaringEnabled true
+        // Sets Java compatibility to Java 8
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.12.0'
 }

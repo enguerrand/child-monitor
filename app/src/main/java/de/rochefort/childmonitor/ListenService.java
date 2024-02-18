@@ -18,12 +18,14 @@ package de.rochefort.childmonitor;
 
 import static de.rochefort.childmonitor.AudioCodecDefines.CODEC;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.media.MediaPlayer;
@@ -31,7 +33,9 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.ServiceCompat;
+
 import android.util.Log;
 import android.widget.Toast;
 
@@ -76,7 +80,8 @@ public class ListenService extends Service {
             String name = extras.getString("name");
             childDeviceName = name;
             Notification n = buildNotification(name);
-            startForeground(ID, n);
+            final int foregroundServiceType =  (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ? ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK : 0; // Keep the linter happy
+            ServiceCompat.startForeground(this, ID, n, foregroundServiceType);
             String address = extras.getString("address");
             int port = extras.getInt("port");
             doListen(address, port);
@@ -97,7 +102,7 @@ public class ListenService extends Service {
         int NOTIFICATION = R.string.listening;
         notificationManager.cancel(NOTIFICATION);
 
-        stopForeground(true);
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
         // Tell the user we stopped.
         Toast.makeText(this, R.string.stopped, Toast.LENGTH_SHORT).show();
     }

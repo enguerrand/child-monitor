@@ -20,6 +20,10 @@
         android:required="true" />
     <uses-permission
         android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
 
     <application
         android:allowBackup="true"
@@ -30,10 +34,12 @@
         <service
             android:name=".ListenService"
             android:enabled="true"
+            android:foregroundServiceType="mediaPlayback"
             android:exported="false"/>
         <service
             android:name=".MonitorService"
             android:enabled="true"
+            android:foregroundServiceType="microphone"
             android:exported="false"/>
 
         <activity

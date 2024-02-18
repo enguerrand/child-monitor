@@ -18,7 +18,7 @@ package de.rochefort.childmonitor;
 
 import android.os.Handler;
 import android.os.Looper;
-import android.support.v4.util.CircularArray;
+import androidx.collection.CircularArray;
 
 public class VolumeHistory {
     private double maxVolume = 0.25;
