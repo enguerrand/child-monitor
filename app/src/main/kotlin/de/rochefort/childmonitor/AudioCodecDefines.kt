@@ -20,9 +20,12 @@ import android.media.AudioFormat
 import de.rochefort.childmonitor.audio.G711UCodec
 
 object AudioCodecDefines {
+    val CODEC = G711UCodec()
     const val FREQUENCY = 8000
     const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
-    val CODEC = G711UCodec()
     const val CHANNEL_CONFIGURATION_IN = AudioFormat.CHANNEL_IN_MONO
     const val CHANNEL_CONFIGURATION_OUT = AudioFormat.CHANNEL_OUT_MONO
+    private const val TRANSMIT_FREQUENCY = 50 // Hz
+    const val SAMPLES_PER_READ = FREQUENCY / TRANSMIT_FREQUENCY
+    const val BUFFER_SIZE = 2 * SAMPLES_PER_READ // Enough space for two packets (on each side)
 }

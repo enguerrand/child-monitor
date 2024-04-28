@@ -126,8 +126,10 @@ class ListenService : Service() {
     private fun doListen(address: String?, port: Int) {
         val lt = Thread {
             try {
-                val socket = Socket(address, port)
-                socket.soTimeout = 30_000
+                val socket = Socket(address, port).apply {
+                    soTimeout = 30_000
+                    receiveBufferSize = AudioCodecDefines.BUFFER_SIZE
+                }
                 val success = streamAudio(socket)
                 if (!success) {
                     playAlert()
