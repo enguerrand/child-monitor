@@ -1,2 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources></resources>
+<resources>
+    <string name="action_settings">Настройки</string>
+    <string name="parentDescription">Сопрягается с детским устройством и воспроизводит полученное аудио</string>
+    <string name="childDevice">Детское устройство</string>
+    <string name="serviceTitle">Служба:</string>
+    <string name="serviceDescription">Название службы с которой должен сопрягаться родитель</string>
+    <string name="loading">Загрузка...</string>
+    <string name="stopped">Остановлено</string>
+    <string name="streaming">Трансляция...</string>
+    <string name="parentDevice">Родительское устройство</string>
+    <string name="selectChildDevice">Выберите детское устройство:</string>
+    <string name="status">Состояние:</string>
+    <string name="connectedTo">Подключено к:</string>
+    <string name="listening">Прослушивание...</string>
+    <string name="addressTitle">Адреса:</string>
+    <string name="portTitle">Порт:</string>
+    <string name="notConnected">Не подключен ни к одной сети</string>
+    <string name="connect">Подключится</string>
+    <string name="exampleAddress">192.168.1.2</string>
+    <string name="examplePort">10000</string>
+    <string name="invalidPort">Либо порт не был введен, либо он недействителен</string>
+    <string name="invalidAddress">Необходимо заполнить поле адреса</string>
+    <string name="discoverChild">Найти ребёнка в сети</string>
+    <string name="enterChildAddress">Выберите ребёнка по адресу</string>
+    <string name="enterChildAddressDescription">Введите адрес и порт ребёнка</string>
+    <string name="app_name">Видеоняня</string>
+    <string name="useAsChildDevice">Использовать как детскую камеру</string>
+    <string name="waitingForParent">Ожидание родителя...</string>
+    <string name="disconnected">Отключено</string>
+    <string name="discoverChildDescription">Выберите ребёнка из списка обнаруженных детей в сети</string>
+    <string name="childDescription">Устройство помещается с ребёнком и отправляет аудио на сопряженное родительское устройство</string>
+    <string name="useAsParentDevice">Как родительский монитор</string>
+    <string name="enterAddressInstructions">Введите IP адрес и порт ребёнка и нажмите кнопку подключиться</string>
+</resources>
