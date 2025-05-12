@@ -79,3 +79,9 @@ and potentially merged into the main Child Monitor repository. The preferred
 way to do this is to submit a Pull Request to the Child Monitor project.
 Changes need to apply cleanly onto the master branch and pass all
 unit tests and produce no errors during static analysis.
+
+## Translations
+
+I decided to stop accepting any PRs for translations except for languages that I speak well enough to ensure a minimum quality level.
+These would be english, german, french.
+For all other languages I will neither accept new strings.xml nor guarantee to keep the present ones around.
