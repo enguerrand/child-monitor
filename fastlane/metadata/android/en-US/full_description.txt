@@ -3,4 +3,3 @@
 <p>The project is a fork of Protect Baby Monitor which is declared as "on hiatus" by its developer.</p>
 <p>Child Monitor works on Android 5.0 (Lollipop) and newer, i.e. Android SDK 21.</p>
 <p>Warning: This version of Child Monitor is incompatible with versions older than 1.0!</p>
-<p>Bugfix in this release: Wrong color scaling of volume monitor background.</p>

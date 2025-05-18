@@ -1,0 +1,1 @@
+- Bugfix: Wrong color scaling of volume monitor background.
