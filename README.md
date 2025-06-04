@@ -21,8 +21,8 @@ and streams audio. Room for improvement includes:
 At the time this project was forked from _Protect Baby Monitor_ there was no obvious open source solution for a
 baby monitor for Android in F-Droid.
 
-# Running over GSM or on different WIFI networks
-To get this App also running outside of the same WIFI network a VPN could be used, for example by installing [Anywherelan](https://github.com/anywherelan/awl) on both android devices. If you are connected in _awl_ note the IP there, e.g. 10.66.0.2. Start the _Child Monitor_ child device and on the parent device connect via address using the IP from before (10.66.0.2, not the VPN IP 10.66.0.1 which is shown on the child device). Only one thing: the child device doesn't show a port and service name if it isn't on a WIFI network, but a connection could still be established over VPN via GSM.
+# Running on different networks
+To get this App also running outside of the same WIFI network a VPN could be used. There are several open source P2P VPN apps available which only need to be installed on both devices and do not require a explicit server. If you are connected over VPN note the IP there, e.g. 10.66.0.2. Start the _Child Monitor_ child device and on the parent device connect via address using the IP from before (10.66.0.2, not the VPN IP 10.66.0.1 which is shown on the child device). Only one thing: the auto discovery doesn't work so the child device doesn't show a port and service name if it isn't on a WIFI network, but a connection could still be established over VPN using the IP.
 
 # License information
 _Child Monitor_ is licensed under the GPLv3. The Ulaw encoding / decoding code is licensed under the Apache License, Version 2.0 and taken from the Android Open Source Project.
