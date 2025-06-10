@@ -36,59 +36,87 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import java.io.IOException
-import java.net.ServerSocket
-import java.net.Socket
+import java.lang.Thread.UncaughtExceptionHandler
+import java.net.InetSocketAddress
+import java.net.StandardSocketOptions
+import java.nio.ByteBuffer
+import java.nio.channels.ClosedByInterruptException
+import java.nio.channels.SelectionKey
+import java.nio.channels.Selector
+import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
+
+class Encoder {
+    // This defines how much we want to read from the audio-buffer
+    private val samplesPerRead = AudioCodecDefines.SAMPLES_PER_READ
+    val audioRecord = try {
+        with(AudioCodecDefines) {
+            // This defines how big the audio-buffer needs to be at least
+            // samplesPerRead need to be smaller than audioBufferSize
+            val audioBufferSize = AudioRecord.getMinBufferSize(FREQUENCY, CHANNEL_CONFIGURATION_IN, ENCODING)
+            AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                FREQUENCY,
+                CHANNEL_CONFIGURATION_IN,
+                ENCODING,
+                audioBufferSize
+            ).also {
+                it.startRecording()
+            }
+        }
+    } catch (e: SecurityException) {
+        // This should never happen, we asked for permission before
+        throw RuntimeException(e)
+    }
+
+    private val pcmBuffer = ShortArray(samplesPerRead)
+    private val ulawBuffer = ByteArray(samplesPerRead)
+    private var encoded = ByteBuffer.wrap(ulawBuffer, 0, 0 )
+
+    fun read() : ByteBuffer {
+        val read = audioRecord.read(pcmBuffer, 0, samplesPerRead)
+        val encodedLength = AudioCodecDefines.CODEC.encode(pcmBuffer, read, ulawBuffer, 0)
+        encoded.rewind()
+        encoded.limit(encodedLength)
+        return this.encoded
+    }
+}
 
 class MonitorService : Service() {
+    private var encoder: Encoder? = null
     private val binder: IBinder = MonitorBinder()
     private lateinit var nsdManager: NsdManager
     private var registrationListener: RegistrationListener? = null
-    private var currentSocket: ServerSocket? = null
-    private var connectionToken: Any? = null
-    private var currentPort = 0
+    private var selector: Selector = Selector.open()
     private lateinit var notificationManager: NotificationManager
     private var monitorThread: Thread? = null
     var monitorActivity: MonitorActivity? = null
 
-    private fun serviceConnection(socket: Socket) {
-        val ma = this.monitorActivity
-        ma?.runOnUiThread {
-            val statusText = ma.findViewById<TextView>(R.id.textStatus)
-            statusText.setText(R.string.streaming)
-        }
-        val frequency: Int = AudioCodecDefines.FREQUENCY
-        val channelConfiguration: Int = AudioCodecDefines.CHANNEL_CONFIGURATION_IN
-        val audioEncoding: Int = AudioCodecDefines.ENCODING
-        val bufferSize = AudioRecord.getMinBufferSize(frequency, channelConfiguration, audioEncoding)
-        val audioRecord: AudioRecord = try {
-            AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    frequency,
-                    channelConfiguration,
-                    audioEncoding,
-                    bufferSize
-            )
-        } catch (e: SecurityException) {
-            // This should never happen, we asked for permission before
-            throw RuntimeException(e)
-        }
-        val pcmBufferSize = bufferSize * 2
-        val pcmBuffer = ShortArray(pcmBufferSize)
-        val ulawBuffer = ByteArray(pcmBufferSize)
-        try {
-            audioRecord.startRecording()
-            val out = socket.getOutputStream()
-            socket.sendBufferSize = pcmBufferSize
-            Log.d(TAG, "Socket send buffer size: " + socket.sendBufferSize)
-            while (socket.isConnected && (this.currentSocket != null) && !Thread.currentThread().isInterrupted) {
-                val read = audioRecord.read(pcmBuffer, 0, bufferSize)
-                val encoded: Int = AudioCodecDefines.CODEC.encode(pcmBuffer, read, ulawBuffer, 0)
-                out.write(ulawBuffer, 0, encoded)
+    private fun ensureRecording() : Encoder {
+        var e = this.encoder
+        if (e == null) {
+            e = Encoder()
+            this.encoder = e
+            this.monitorActivity?.let {
+                it.runOnUiThread {
+                    val statusText = it.findViewById<TextView>(R.id.textStatus)
+                    statusText.setText(R.string.streaming)
+                }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Connection failed", e)
-        } finally {
-            audioRecord.stop()
+        }
+        return e
+    }
+
+    private fun stopRecording() {
+        this.encoder?.let {
+            this.encoder = null
+            it.audioRecord.stop()
+            monitorActivity?.let { ma ->
+                ma.runOnUiThread {
+                    val statusText = ma.findViewById<TextView>(R.id.textStatus)
+                    statusText.setText(R.string.waitingForParent)
+                }
+            }
         }
     }
 
@@ -97,8 +125,6 @@ class MonitorService : Service() {
         super.onCreate()
         this.notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         this.nsdManager = this.getSystemService(NSD_SERVICE) as NsdManager
-        this.currentPort = 10000
-        this.currentSocket = null
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -106,7 +132,8 @@ class MonitorService : Service() {
         // Display a notification about us starting.  We put an icon in the status bar.
         createNotificationChannel()
         val n = buildNotification()
-        val foregroundServiceType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0 // Keep the linter happy
+        val foregroundServiceType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0 // Keep the linter happy
         ServiceCompat.startForeground(this, ID, n, foregroundServiceType)
         ensureMonitorThread()
         return START_REDELIVER_INTENT
@@ -117,40 +144,117 @@ class MonitorService : Service() {
         if (mt != null && mt.isAlive) {
             return
         }
-        val currentToken = Any()
-        this.connectionToken = currentToken
         mt = Thread {
-            while (this.connectionToken == currentToken) {
-                try {
-                    ServerSocket(this.currentPort).use { serverSocket ->
-                        this.currentSocket = serverSocket
-                        // Store the chosen port.
-                        val localPort = serverSocket.localPort
-
-                        // Register the service so that parent devices can
-                        // locate the child device
-                        registerService(localPort)
-                        serverSocket.accept().use { socket ->
-                            Log.i(TAG, "Connection from parent device received")
-
-                            // We now have a client connection.
-                            // Unregister so no other clients will
-                            // attempt to connect
-                            unregisterService()
-                            serviceConnection(socket)
-                        }
+            ServerSocketChannel.open().use { serverChannel ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        serverChannel.setOption(
+                            StandardSocketOptions.SO_SNDBUF,
+                            AudioCodecDefines.BUFFER_SIZE
+                        )
+                    } catch (e : UnsupportedOperationException) {
+                        Log.d(TAG, "Cannot set send buffer size")
                     }
-                } catch (e: Exception) {
-                    if (this.connectionToken == currentToken) {
-                        // Just in case
-                        this.currentPort++
-                        Log.e(TAG, "Failed to open server socket. Port increased to $currentPort", e)
+                }
+                val port = bindFirstFreePort(serverChannel)
+                if (port <= 0) {
+                    Log.e(TAG, "No free port found")
+                    return@Thread
+                }
+                serverChannel.configureBlocking(false)
+                serverChannel.register(this.selector, SelectionKey.OP_ACCEPT)
+
+                // Register the service so that parent devices can
+                // locate the child device
+                this.registerService(port)
+
+                try {
+                    val thread = Thread.currentThread()
+                    while (!thread.isInterrupted) {
+                        waitForClient()
+                        streamToClients()
+                    }
+                }
+                catch (_: ClosedByInterruptException) {
+                    // Unlikely, but might be triggered while we write
+                }
+                catch (_: InterruptedException) {
+                    // Should never happen, but who knows
+                }
+                finally {
+                    stopRecording()
+                    unregisterService()
+                    if (selector.isOpen) {
+                        selector.keys().forEach {
+                            it.channel().close()
+                        }
+                        selector.close()
                     }
                 }
             }
         }
-        this.monitorThread = mt
+        mt.uncaughtExceptionHandler =
+            UncaughtExceptionHandler { t, e -> Log.e(TAG, "Uncaught", e) }
         mt.start()
+        this.monitorThread = mt
+    }
+
+    private fun streamToClients() {
+        val encoder = ensureRecording()
+        while (selector.keys().size > 1) {
+            val buffer = encoder.read() // Read it, even if we can't send it, so we don't buffer it
+            val timeout = 1L // As close to non-blocking we can get with the old API
+            this.selector.select(timeout)
+            selector.selectedKeys().run {
+                forEach {
+                    if (it.isAcceptable) {
+                        handleAccept(it.channel() as ServerSocketChannel)
+                    } else if (it.isWritable) {
+                        handleWrite(it.channel() as SocketChannel, buffer)
+                    } else if (!it.isValid) {
+                        it.cancel()
+                    } else {
+                        // Should never be reached
+                        Log.d(TAG, "Unexpected key ${it}")
+                    }
+                }
+                clear()
+            }
+        }
+    }
+
+    private fun handleWrite(clientChannel : SocketChannel, buffer: ByteBuffer) {
+        try {
+            buffer.rewind()
+            clientChannel.write(buffer)
+        } catch (e: IOException) {
+            Log.w(TAG, "Connection closed or broken")
+            clientChannel.close()
+        }
+    }
+
+    private fun handleAccept(serverChannel: ServerSocketChannel) {
+        val clientChannel = serverChannel.accept() ?: return
+        clientChannel.run {
+            socket().tcpNoDelay = true
+            configureBlocking(false)
+            register(selector, SelectionKey.OP_WRITE)
+        }
+    }
+
+    private fun waitForClient() {
+        stopRecording()
+        while (selector.keys().size <= 1) {
+            selector.select()
+            selector.selectedKeys().run {
+                forEach {
+                    if (it.isAcceptable) {
+                        handleAccept(it.channel() as ServerSocketChannel)
+                    }
+                }
+                clear()
+            }
+        }
     }
 
     private fun registerService(port: Int) {
@@ -229,21 +333,12 @@ class MonitorService : Service() {
     }
 
     override fun onDestroy() {
+        // Interrupt the thread: It will cancel i/o operations, such as write or select
+        // The thread will take care of cleaning up
         this.monitorThread?.let {
-            this.monitorThread = null
             it.interrupt()
+            it.join(500) // Give it a bit time to terminate
         }
-        unregisterService()
-        this.connectionToken = null
-        this.currentSocket?.let {
-            try {
-                it.close()
-            } catch (e: IOException) {
-                Log.e(TAG, "Failed to close active socket on port $currentPort")
-            }
-        }
-        this.currentSocket = null
-
         // Cancel the persistent notification.
         this.notificationManager.cancel(R.string.listening)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -265,5 +360,18 @@ class MonitorService : Service() {
         const val TAG = "MonitorService"
         const val CHANNEL_ID = TAG
         const val ID = 1338
+        const val STARTING_PORT = 10_000
+    }
+
+    private fun bindFirstFreePort(serverChannel: ServerSocketChannel): Int {
+        for (port in STARTING_PORT..65_000) {
+            try {
+                serverChannel.socket().bind(InetSocketAddress(port))
+                return port
+            } catch (e: IOException) {
+                // Pass
+            }
+        }
+        return 0
     }
 }
